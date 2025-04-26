@@ -23,6 +23,7 @@ RED    = '\033[31m'
 RESET  = '\033[0m'
 
 def electricity_rate(dt=None, holidays=None, schedule='TOU'):
+    # Return the raw rate for the given datetime & schedule
     if dt is None:
         dt = datetime.now()
     if holidays is None:
@@ -50,13 +51,22 @@ def electricity_rate(dt=None, holidays=None, schedule='TOU'):
     else:
         raise ValueError("Unknown schedule")
 
+def cost_to_run(power, unit='W', dt=None, holidays=None, schedule='TOU'):
+    # Calculate cost to run a device at given power for one hour
+    if unit.lower() == 'w':
+        energy_kwh = power / 1000.0
+    elif unit.lower() == 'kwh':
+        energy_kwh = power
+    else:
+        raise ValueError("Unit must be 'W' or 'kWh'")
+    rate = electricity_rate(dt, holidays, schedule)
+    return energy_kwh * rate
+
 def color_rate(rate, schedule='TOU'):
+    # Return ANSI-colored rate
     sched = schedule.upper()
     if sched == 'ULO':
-        if rate in (ULO_ULTRA_LOW, ULO_WEEKEND_OFF_PEAK):
-            color = GREEN
-        else:
-            color = RED
+        color = GREEN if rate in (ULO_ULTRA_LOW, ULO_WEEKEND_OFF_PEAK) else RED
         return f"{color}${rate:.3f}{RESET}"
     if rate in (WINTER_OFF_PEAK, SUMMER_OFF_PEAK):
         color = GREEN
@@ -67,13 +77,11 @@ def color_rate(rate, schedule='TOU'):
     return f"{color}${rate:.3f}{RESET}"
 
 def rate_level_box(dt=None, holidays=None, schedule='TOU'):
-    # Colored ASCII [BOX] indicator
+    # Return colored ASCII [BOX] indicator
     rate = electricity_rate(dt, holidays, schedule)
     sched = schedule.upper()
-    # ULO: green for best (ultra-low & weekend), red otherwise
     if sched == 'ULO':
         return GREEN + "[BOX]" + RESET if rate in (ULO_ULTRA_LOW, ULO_WEEKEND_OFF_PEAK) else RED + "[BOX]" + RESET
-    # TOU: green/yellow/red for off/mid/on
     if rate in (WINTER_OFF_PEAK, SUMMER_OFF_PEAK):
         return GREEN + "[BOX]" + RESET
     if rate in (WINTER_MID_PEAK, SUMMER_MID_PEAK):
@@ -81,6 +89,7 @@ def rate_level_box(dt=None, holidays=None, schedule='TOU'):
     return RED + "[BOX]" + RESET
 
 def load_rate_icon(dt=None, holidays=None, schedule='TOU'):
+    # Return filename of GIF icon
     rate = electricity_rate(dt, holidays, schedule)
     sched = schedule.upper()
     if sched == 'ULO':
@@ -92,22 +101,22 @@ def load_rate_icon(dt=None, holidays=None, schedule='TOU'):
     return 'red.gif'
 
 if __name__ == "__main__":
+    # Define holidays
     holidays = {date(2025,1,1), date(2025,12,25)}
     tests = [
-        datetime(2025,1,15,8,30),
-        datetime(2025,1,15,12,0),
-        datetime(2025,1,18,14,0),
-        datetime(2025,5,15,8,30),
-        datetime(2025,5,15,12,0),
-        datetime(2025,5,17,20,0),
-        datetime(2025,6,10,23,30),
-        datetime(2025,6,11,6,45),
+        datetime(2025,1,15,8,30), datetime(2025,1,15,12,0),
+        datetime(2025,1,18,14,0), datetime(2025,5,15,8,30),
+        datetime(2025,5,15,12,0), datetime(2025,5,17,20,0),
+        datetime(2025,6,10,23,30), datetime(2025,6,11,6,45)
     ]
     for sched in ('TOU','ULO'):
         print(f"--- {sched} Tests ---")
         for dt in tests:
             rate = electricity_rate(dt,holidays,sched)
             print(f"{dt:%Y-%m-%d %a %H:%M} -> {color_rate(rate,sched)} {rate_level_box(dt,holidays,sched)} {load_rate_icon(dt,holidays,sched)}")
+    print("--- Cost Examples ---")
+    print(f"Cost to run 1500 W for 1h (TOU): $ {cost_to_run(1500, 'W', schedule='TOU'):.4f}")
+    print(f"Cost to run 2 kWh for 1h (ULO): $ {cost_to_run(2, 'kWh', schedule='ULO'):.4f}")
     print("--- Current Time ---")
     for sched in ('TOU','ULO'):
         rate = electricity_rate(schedule=sched)
